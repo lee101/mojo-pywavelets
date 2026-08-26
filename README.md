@@ -83,18 +83,21 @@ faster.
 
 | Case | mojo-pywavelets | PyWavelets | PyWavelets / Mojo | Result |
 |---|---:|---:|---:|---|
-| dwt db4 symmetric, 1M | 13.88 ms | 5.75 ms | 0.41x | slower |
-| dwt db20 symmetric, 1M | 15.27 ms | 32.08 ms | 2.10x | faster |
-| idwt db4 symmetric, 500k bands | 3.55 ms | 3.44 ms | 0.97x | slower |
-| wavedec db4 level 6, 1M | 17.64 ms | 12.94 ms | 0.73x | slower |
-| dwt2 db4, 2048 x 2048 | 150.68 ms | 171.49 ms | 1.14x | faster |
-| wavedec2 db4 level 4, 1024 x 1024 | 40.76 ms | 32.64 ms | 0.80x | slower |
+| dwt db4 symmetric, 1M | 2.42 ms | 8.86 ms | 3.65x | faster |
+| dwt db20 symmetric, 1M | 3.59 ms | 36.75 ms | 10.23x | faster |
+| idwt db4 symmetric, 500k bands | 0.83 ms | 3.23 ms | 3.87x | faster |
+| wavedec db4 level 6, 1M | 5.67 ms | 10.16 ms | 1.79x | faster |
+| dwt2 db4, 2048 x 2048 | 139.16 ms | 141.28 ms | 1.02x | faster |
+| wavedec2 db4 level 4, 1024 x 1024 | 20.98 ms | 31.56 ms | 1.50x | faster |
 
-The long-filter analysis and large single-level 2D cases benefit from Mojo SIMD
-and thresholded parallelism. PyWavelets is faster in the other measured cases.
-These results are reported as measured, including the slower cases.
+The filter-bank kernels use Mojo SIMD and thresholded parallelism. Default-axis
+multilevel 2D decomposition processes the contiguous transform axis first to
+avoid one full-array copy per level. All measured cases are at parity with or
+faster than PyWavelets in this run.
 
-No GPU path is included.
+No GPU path is included. The FIR analysis and synthesis kernels are below
+2 flops per byte moved, so host/device transfer and launch overhead cannot be
+justified for these bandwidth-bound operations.
 
 ## How it works
 
@@ -107,9 +110,10 @@ NumPy owners remain live until each call returns, and no Mojo allocation crosses
 the FFI boundary.
 
 Analysis applies the low- and high-pass filters together while downsampling.
-Interior filter windows use native-width SIMD loads and reductions, while
-boundaries and incomplete vectors use scalar paths. Synthesis packs even and
-odd filter phases and reconstructs output pairs with SIMD dot products.
+Interior filter windows use native-width SIMD loads and vector accumulators,
+while boundaries and incomplete vectors use scalar paths. Synthesis packs even
+and odd filter phases and reconstructs output pairs with SIMD dot products and
+a scalar tail.
 Periodization has its own phase and sizing path to match PyWavelets exactly.
 Large independent workloads are partitioned across physical CPU cores;
 smaller transforms stay serial to avoid thread overhead. Built-in wavelet

@@ -6,8 +6,8 @@ from std.sys import simd_width_of
 from std.sys.info import num_physical_cores
 
 comptime Ptr = UnsafePointer[Float64, AnyOrigin[mut=True]]
-comptime ANALYSIS_PARALLEL_WORK = 4_000_000
-comptime SYNTHESIS_PARALLEL_WORK = 16_000_000
+comptime ANALYSIS_PARALLEL_WORK = 2_000_000
+comptime SYNTHESIS_PARALLEL_WORK = 4_000_000
 
 
 def positive_mod(value: Int, modulus: Int) -> Int:
@@ -170,19 +170,23 @@ def idwt_rows(
         var even = Float64(0.0)
         var odd = Float64(0.0)
         comptime W = simd_width_of[DType.float64]()
+        var even_vec = SIMD[DType.float64, W](0.0)
+        var odd_vec = SIMD[DType.float64, W](0.0)
         var j = 0
         while j + W <= half:
             var av = a.load[width=W](j)
             var dv = d.load[width=W](j)
-            even += (
+            even_vec += (
                 av * rec_lo.load[width=W](j)
                 + dv * rec_hi.load[width=W](j)
-            ).reduce_add()
-            odd += (
+            )
+            odd_vec += (
                 av * rec_lo.load[width=W](half + j)
                 + dv * rec_hi.load[width=W](half + j)
-            ).reduce_add()
+            )
             j += W
+        even += even_vec.reduce_add()
+        odd += odd_vec.reduce_add()
         while j < half:
             even += a[j] * rec_lo[j] + d[j] * rec_hi[j]
             odd += (

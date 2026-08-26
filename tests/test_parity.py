@@ -163,6 +163,16 @@ def test_simd_tail_filter():
     )
 
 
+def test_idwt_simd_tail_filter():
+    approx = RNG.normal(size=257)
+    detail = RNG.normal(size=257)
+    assert_coeffs_close(
+        mpw.idwt(approx, detail, "sym6"),
+        pywt.idwt(approx, detail, "sym6"),
+        atol=3e-14,
+    )
+
+
 @pytest.mark.parametrize("length", [999_973, 1_000_003])
 def test_parallel_threshold(length):
     data = RNG.normal(size=length)
@@ -298,6 +308,16 @@ def test_wavedec2_and_waverec2(mode):
         pywt.waverec2(upstream, "bior2.2", mode, axes=(1, 2)),
         atol=3e-14,
     )
+
+
+@pytest.mark.parametrize("axes", [(0, 2), (2, 0)])
+def test_wavedec2_reordered_axes_with_per_axis_options(axes):
+    data = RNG.normal(size=(65, 20, 67))
+    wavelets = ("db2", "sym4")
+    modes = ("reflect", "periodization")
+    ours = mpw.wavedec2(data, wavelets, modes, level=2, axes=axes)
+    upstream = pywt.wavedec2(data, wavelets, modes, level=2, axes=axes)
+    assert_coeffs_close(ours, upstream, atol=3e-14)
 
 
 def test_wavedecn_and_waverecn():

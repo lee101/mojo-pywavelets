@@ -71,11 +71,24 @@ def wavedec2(data, wavelet, mode="symmetric", level=None, axes=(-2, -1)):
     if len(axes) != 2 or len(set(axes)) != 2:
         raise ValueError("Expected 2 unique axes")
     wavelets = _per_axis(wavelet, axes)
+    modes = _per_axis(mode, axes)
     level = _level([array.shape[axis] for axis in axes], wavelets, level)
     details = []
     approx = array
     for _ in range(level):
-        approx, detail = dwt2(approx, wavelet, mode, axes)
+        if axes[1] == approx.ndim - 1:
+            second_approx, second_detail = dwt(
+                approx, wavelets[1], modes[1], axes[1]
+            )
+            approx, horizontal = dwt(
+                second_approx, wavelets[0], modes[0], axes[0]
+            )
+            vertical, diagonal = dwt(
+                second_detail, wavelets[0], modes[0], axes[0]
+            )
+            detail = horizontal, vertical, diagonal
+        else:
+            approx, detail = dwt2(approx, wavelets, modes, axes)
         details.append(detail)
     return [approx, *reversed(details)]
 
