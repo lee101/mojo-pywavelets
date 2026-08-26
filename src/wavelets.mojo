@@ -1,6 +1,7 @@
 """Decimated analysis and synthesis filter banks over row-major buffers."""
 
-from std.algorithm import parallelize
+from max.algorithm import parallelize
+from std.runtime import initialize_runtime
 from std.sys import simd_width_of
 from std.sys.info import num_physical_cores
 
@@ -288,6 +289,7 @@ def mpw_dwt_f64(
     )
     if coeff_len != expected:
         return 2
+    initialize_runtime()
     dwt_rows(
         Ptr(unsafe_from_address=x),
         rows,
@@ -329,6 +331,7 @@ def mpw_idwt_f64(
     )
     if result_len != expected:
         return 2
+    initialize_runtime()
     idwt_rows(
         Ptr(unsafe_from_address=approx),
         Ptr(unsafe_from_address=detail),
