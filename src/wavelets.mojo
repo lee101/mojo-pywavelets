@@ -1,13 +1,8 @@
 """Decimated analysis and synthesis filter banks over row-major buffers."""
 
-from max.algorithm import parallelize
-from std.runtime import initialize_runtime
 from std.sys import simd_width_of
-from std.sys.info import num_physical_cores
 
 comptime Ptr = UnsafePointer[Float64, AnyOrigin[mut=True]]
-comptime ANALYSIS_PARALLEL_WORK = 2_000_000
-comptime SYNTHESIS_PARALLEL_WORK = 4_000_000
 
 
 def positive_mod(value: Int, modulus: Int) -> Int:
@@ -124,23 +119,8 @@ def dwt_rows(
         dst_d[k] = d
 
     var total = rows * coeff_len
-    var work = total * filter_len
-
-    if work >= ANALYSIS_PARALLEL_WORK:
-        var workers = min(num_physical_cores(), 16)
-        var tasks = workers * 4
-
-        @parameter
-        def process(task: Int):
-            var begin = total * task // tasks
-            var end = total * (task + 1) // tasks
-            for position in range(begin, end):
-                transform_position(position)
-
-        parallelize[process](tasks, workers)
-    else:
-        for position in range(total):
-            transform_position(position)
+    for position in range(total):
+        transform_position(position)
 
 
 def idwt_rows(
@@ -220,33 +200,8 @@ def idwt_rows(
     var total = rows * result_len
     if not periodization and filter_len % 2 == 0:
         var pairs = total // 2
-        if total * filter_len >= SYNTHESIS_PARALLEL_WORK:
-            var workers = min(num_physical_cores(), 16)
-            var tasks = workers * 4
-
-            @parameter
-            def process_pairs(task: Int):
-                var begin = pairs * task // tasks
-                var end = pairs * (task + 1) // tasks
-                for position in range(begin, end):
-                    reconstruct_pair(position)
-
-            parallelize[process_pairs](tasks, workers)
-        else:
-            for position in range(pairs):
-                reconstruct_pair(position)
-    elif rows > 1 and total * filter_len >= SYNTHESIS_PARALLEL_WORK:
-        var workers = min(num_physical_cores(), 16)
-        var tasks = workers * 4
-
-        @parameter
-        def process(task: Int):
-            var begin = total * task // tasks
-            var end = total * (task + 1) // tasks
-            for position in range(begin, end):
-                reconstruct_position(position)
-
-        parallelize[process](tasks, workers)
+        for position in range(pairs):
+            reconstruct_pair(position)
     else:
         for row in range(rows):
             var a = approx + row * coeff_len
@@ -293,7 +248,6 @@ def mpw_dwt_f64(
     )
     if coeff_len != expected:
         return 2
-    initialize_runtime()
     dwt_rows(
         Ptr(unsafe_from_address=x),
         rows,
@@ -335,7 +289,6 @@ def mpw_idwt_f64(
     )
     if result_len != expected:
         return 2
-    initialize_runtime()
     idwt_rows(
         Ptr(unsafe_from_address=approx),
         Ptr(unsafe_from_address=detail),
